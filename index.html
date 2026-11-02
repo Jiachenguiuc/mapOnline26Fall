@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore trails and field survey data in Lee F. Jackson Spring Creek Forest.">
+  <title>Spring Creek · Trail Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script defer src="./script.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">⌁</span><span>SPRING CREEK<small>FOREST · TRAIL EXPLORER</small></span></a>
+    <span class="location">Garland, Texas <span class="live-dot"></span> Trail Survey Map</span>
+  </header>
+  <main class="workspace">
+    <aside class="sidebar" aria-label="Trail explorer">
+      <div class="intro"><p class="eyebrow">LEE F. JACKSON</p><h1>Find your trail.<br>Explore the forest.</h1><p>Explore the paths of Spring Creek Forest, one surveyed trail segment at a time.</p></div>
+      <div class="filters">
+        <label for="search">Search trails</label><input id="search" type="search" placeholder="Search by trail name…" autocomplete="off">
+        <div class="filter-grid"><div><label for="type-filter">Trail type</label><select id="type-filter"><option value="">All types</option></select></div><div><label for="surface-filter">Surface</label><select id="surface-filter"><option value="">All surfaces</option></select></div></div>
+        <button id="reset" class="text-button" type="button">Reset filters</button>
+      </div>
+      <div class="result-heading"><h2>Trail segments</h2><span id="count">Loading…</span></div>
+      <p id="status" role="status" aria-live="polite">Loading trail data…</p>
+      <div id="trail-list" class="trail-list" aria-label="Search results"></div>
+      <footer class="sidebar-footer"><span class="live-dot"></span> Field survey data <span>·</span> Preview</footer>
+    </aside>
+    <section class="map-panel" aria-label="Interactive map">
+      <div id="map" aria-label="Trail map"></div>
+      <button id="fit-bounds" class="map-button" type="button">⌖ Full extent</button>
+      <div id="map-notices" class="map-notices" aria-live="polite"><p id="boundary-status">Checking boundary data…</p><p id="tile-status" hidden></p></div>
+      <details class="legend" open><summary>Map legend</summary><div id="legend-items"></div><div id="boundary-legend" class="legend-row" hidden><span class="boundary-swatch" aria-hidden="true"></span>Preserve boundary</div><p>Select a trail or list item for details</p></details>
+    </section>
+  </main>
+  <noscript><p class="noscript">Please enable JavaScript to load the interactive map.</p></noscript>
+</body>
+</html>
