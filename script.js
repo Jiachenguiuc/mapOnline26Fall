@@ -60,6 +60,84 @@
   let selected = null;
   let cards = new Map();
   const featureLayers = new Map();
+  const POINT_CATEGORIES = {
+    Signage: { color: "#246a9b", path: 'M12 3v18M4 5h13l3 4-3 4H4z' },
+    Amenity: { color: "#965b32", path: 'M4 5h16v6H4zM3 14h18M6 11v9M18 11v9' },
+    Habitat: { color: "#438346", path: 'M3 10l9-7 9 7M6 8v13h12V8M12 12a2 2 0 1 0 0 4a2 2 0 1 0 0-4' },
+    Other: { color: "#79569b", path: 'M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0zM12 7v6M9 10h6' }
+  };
+  function pointSymbol(category) {
+    const info = POINT_CATEGORIES[category] || POINT_CATEGORIES.Other;
+    return `<span class="point-symbol" style="--point-color:${info.color}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${info.path}"/></svg></span>`;
+  }
+  let imageManifest = {};
+  let photoIndexAvailable = true;
+  let pointBounds = null;
+  function pointPopup(feature) {
+    const p = feature.properties || {};
+    const id = value(p.PointID);
+    const name = value(p.Name);
+    const content = document.createElement("div"); content.className = "point-popup";
+    const title = document.createElement("h3"); title.className = "popup-title"; title.textContent = name;
+    const meta = document.createElement("p"); meta.className = "popup-row";
+    meta.textContent = `${value(p.Category ?? p.category)} · Point ${id}`;
+    content.append(title, meta);
+    const photos = imageManifest[id] || [];
+    if (!photos.length) {
+      const message = document.createElement("p"); message.className = "photo-message";
+      message.textContent = photoIndexAvailable ? "No photos available for this point." : "The photo index could not load. Please refresh to try again.";
+      content.append(message);
+    }
+    photos.forEach((file, index) => {
+      const url = "./data/images/" + file.split("/").map(encodeURIComponent).join("/");
+      const link = document.createElement("a"); link.href = url; link.target = "_blank"; link.rel = "noopener";
+      link.title = "Open full-size photo";
+      const img = document.createElement("img"); img.src = url; img.alt = `${name} — photo ${index + 1}`;
+      img.loading = "lazy"; img.decoding = "async"; img.className = "point-photo";
+      img.addEventListener("error", () => { link.replaceWith(document.createTextNode("Photo unavailable.")); });
+      link.append(img); content.append(link);
+    });
+    return content;
+  }
+  async function loadPoints() {
+    try {
+      const [data, manifest] = await Promise.all([
+        loadGeoJSON("./data/signage.json"),
+        fetch("./data/image-manifest.json").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .catch(() => { photoIndexAvailable = false; return {}; })
+      ]);
+      imageManifest = manifest;
+      const groups = new Map();
+      data.features.filter((f) => f.geometry?.type === "Point").forEach((feature) => {
+        const p = feature.properties || {};
+        const category = value(p.Category ?? p.category);
+        if (!groups.has(category)) groups.set(category, L.featureGroup().addTo(map));
+        const [lng, lat] = feature.geometry.coordinates;
+        if (!Number.isFinite(lng) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+        const marker = L.marker([lat, lng], {
+          icon: L.divIcon({ className: "point-marker", html: pointSymbol(category), iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -18] }),
+          title: value(p.Name), alt: `${value(p.Name)} (${category})`, riseOnHover: true
+        });
+        marker.bindTooltip(value(p.Name), { direction: "top", offset: [0, -16] });
+        marker.bindPopup(() => pointPopup(feature), { maxWidth: 310, minWidth: 240, maxHeight: 340 });
+        groups.get(category).addLayer(marker);
+      });
+      const combined = L.featureGroup();
+      groups.forEach((group, category) => {
+        layers.addOverlay(group, `Points · ${category}`);
+        group.eachLayer((marker) => combined.addLayer(marker));
+        const row = document.createElement("div"); row.className = "legend-row point-legend-row";
+        const icon = document.createElement("span"); icon.innerHTML = pointSymbol(category);
+        row.append(icon, document.createTextNode(`${category} (${group.getLayers().length})`));
+        $("point-legend").append(row);
+      });
+      pointBounds = combined.getBounds();
+    } catch (error) {
+      $("point-status").hidden = false;
+      $("point-status").textContent = "Point data could not load. Trails and boundaries remain available.";
+      console.error("Point data:", error);
+    }
+  }
 
   function styleFor(feature) {
     const info = typeInfo(feature.properties?.Trail_Type);
@@ -167,7 +245,7 @@
     const mobile = window.matchMedia("(max-width: 760px)").matches;
     // Reserve space for the legend so the complete boundary remains visible.
     const right = !mobile && legend.open ? legend.offsetWidth + 40 : 35;
-    const bottom = mobile && legend.open ? legend.offsetHeight + 45 : 45;
+    const bottom = mobile && legend.open ? Math.min(legend.offsetHeight + 45, map.getSize().y * 0.45) : 45;
     map.fitBounds(fullBounds, {
       paddingTopLeft: [35, 65], paddingBottomRight: [right, bottom],
       maxZoom: 17, animate: false
@@ -210,8 +288,8 @@
     }
   }
   // Set the opening view once both requests finish, independent of their order.
-  Promise.all([loadTrails(), loadBoundary()]).then(() => {
-    fullBounds = boundaryBounds?.isValid() ? boundaryBounds : trailBounds;
+  Promise.all([loadTrails(), loadBoundary(), loadPoints()]).then(() => {
+    fullBounds = boundaryBounds?.isValid() ? boundaryBounds : trailBounds?.isValid() ? trailBounds : pointBounds;
     fitFullExtent();
   });
 })();
