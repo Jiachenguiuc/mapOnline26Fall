@@ -1,0 +1,7 @@
+.map-tools/
+__pycache__/
+# Original desktop GIS raster; publish the generated web overlay instead.
+data/images/flowacc_log/
+data/images/info/
+data/images/FlowAcc_Log.ovr
+data/images/FlowAcc_Log.aux.xml

@@ -20,7 +20,28 @@
   const SURFACES = { "Natural Dirt": "Natural Dirt", "Concrete": "Concrete" };
   const value = (v) => v == null || String(v).trim() === "" ? "Not provided" : String(v).trim();
   const typeInfo = (type) => TYPES[type] || { label: value(type), color: "#6f7d78" };
+  let analysisMode = false;
+  let riskBreaks = [];
+  let flowOverlay = null;
+  let flowMetadata = null;
+  const RISK_CLASSES = [
+    { label: "Low", color: "#2b9b50" },
+    { label: "Medium", color: "#e9ba25" },
+    { label: "High", color: "#d73535" }
+  ];
+  const riskScore = (feature) => {
+    const raw = feature.properties?.Risk_Score;
+    return raw == null || raw === "" ? NaN : Number(raw);
+  };
+  function riskInfo(feature) {
+    const score = riskScore(feature);
+    if (!Number.isFinite(score) || !riskBreaks.length) return { label: "No risk data", color: "#7c8582" };
+    const index = riskBreaks.findIndex((upper) => score <= upper);
+    return RISK_CLASSES[index < 0 ? riskBreaks.length - 1 : index];
+  }
   const map = L.map("map", { zoomControl: false }).setView([32.964, -96.653], 16);
+  map.createPane("flowPane");
+  map.getPane("flowPane").style.zIndex = 250;
   L.control.zoom({ position: "topright" }).addTo(map);
   L.control.scale({ imperial: false, position: "bottomleft" }).addTo(map);
   const base = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -52,7 +73,7 @@
       layer.bindPopup(content);
     }
   });
-  const layers = L.control.layers({ "OpenStreetMap": base }, { "Trail survey": trails }, { position: "topright", collapsed: true }).addTo(map);
+  const layers = L.control.layers({}, { "Trail survey": trails }, { position: "topright", collapsed: true }).addTo(map);
   let features = [];
   let fullBounds = null;
   let trailBounds = null;
@@ -140,7 +161,7 @@
   }
 
   function styleFor(feature) {
-    const info = typeInfo(feature.properties?.Trail_Type);
+    const info = analysisMode ? riskInfo(feature) : typeInfo(feature.properties?.Trail_Type);
     return { color: info.color, weight: 4, opacity: 0.95, dashArray: info.dashArray || null };
   }
   function popup(feature) {
@@ -155,6 +176,11 @@
       const key = document.createElement("span"); key.textContent = label;
       row.append(key, document.createTextNode(text)); container.append(row);
     });
+    if (analysisMode) {
+      const row = document.createElement("p"); row.className = "popup-row";
+      row.textContent = `Erosion risk: ${riskInfo(feature).label} · Score: ${Number.isFinite(riskScore(feature)) ? riskScore(feature).toFixed(2) : "Not provided"}`;
+      container.append(row);
+    }
     return container;
   }
   function selectFeature(feature) {
@@ -211,7 +237,7 @@
     $("count").textContent = `${filtered.length} / ${features.length} segments`;
     status.textContent = filtered.length ? "" : "No matching trails. Try a different search or filter.";
     filtered.forEach((feature) => {
-      const p = feature.properties || {}, info = typeInfo(p.Trail_Type);
+      const p = feature.properties || {}, info = analysisMode ? riskInfo(feature) : typeInfo(p.Trail_Type);
       const card = document.createElement("button"); card.type = "button"; card.className = "trail-card"; card.setAttribute("aria-pressed", "false");
       const title = document.createElement("span"); title.className = "card-title"; title.textContent = value(p.Trail_Name);
       const meta = document.createElement("span"); meta.className = "card-meta";
@@ -227,7 +253,27 @@
       cards.set(feature, card); $("trail-list").append(card);
     });
     $("legend-items").replaceChildren();
-    [...new Set(filtered.map((f) => f.properties?.Trail_Type))].forEach((type) => {
+    if (analysisMode) {
+      const heading = document.createElement("strong"); heading.className = "risk-heading";
+      heading.textContent = "Erosion Risk · Natural Breaks"; $("legend-items").append(heading);
+      riskBreaks.forEach((upper, i) => {
+        const row = document.createElement("div"); row.className = "legend-row";
+        const lower = i === 0 ? Math.min(...features.map(riskScore).filter(Number.isFinite)) : riskBreaks[i - 1];
+        row.append(swatch(RISK_CLASSES[i]), document.createTextNode(`${RISK_CLASSES[i].label}: ${i ? "> " : ""}${lower.toFixed(2)} – ${upper.toFixed(2)}`));
+        $("legend-items").append(row);
+      });
+      if (filtered.some((f) => !Number.isFinite(riskScore(f)))) {
+        const row = document.createElement("div"); row.className = "legend-row";
+        row.append(swatch({ color: "#7c8582" }), document.createTextNode("No risk data")); $("legend-items").append(row);
+      }
+      if (flowMetadata) {
+        const label = document.createElement("p"); label.textContent = "FlowAcc_Log · 0.5% clip / Gamma 1";
+        const ramp = document.createElement("div"); ramp.className = "flow-ramp";
+        const range = document.createElement("div"); range.className = "flow-range";
+        range.textContent = `${flowMetadata.stretch[0].toFixed(2)} (light) → ${flowMetadata.stretch[1].toFixed(2)} (blue)`;
+        $("legend-items").append(label, ramp, range);
+      }
+    } else [...new Set(filtered.map((f) => f.properties?.Trail_Type))].forEach((type) => {
       const info = typeInfo(type), row = document.createElement("div"); row.className = "legend-row";
       row.append(swatch(info), document.createTextNode(info.label)); $("legend-items").append(row);
     });
@@ -255,8 +301,15 @@
 
   async function loadTrails() {
     try {
-      const data = await loadGeoJSON("./data/roadSurvey.geojson");
+      const data = await loadGeoJSON("./data/roadSurvey_ErosionRisk.geojson");
+      data.features.forEach((f) => {
+        const p = f.properties || (f.properties = {});
+        p.Trail_Type = p.Trail_Type ?? p["Trail Type"];
+        p.Trail_Name = p.Trail_Name ?? p["Trail Name"];
+        p.Surface_Type = p.Surface_Type ?? p["Surface Type"];
+      });
       features = data.features.filter((f) => f.geometry && ["LineString", "MultiLineString"].includes(f.geometry.type));
+      riskBreaks = window.naturalBreaks(features.map(riskScore), 3);
       addOptions("type-filter", "Trail_Type", (v) => typeInfo(v).label);
       addOptions("surface-filter", "Surface_Type", (v) => SURFACES[v] || v);
       render();
@@ -287,6 +340,32 @@
       console.error("Boundary data:", error);
     }
   }
+  async function loadFlowOverlay() {
+    try {
+      const response = await fetch("./data/analysis/flowacc-overlay.json");
+      if (!response.ok) throw new Error(response.status);
+      flowMetadata = await response.json();
+      flowOverlay = L.imageOverlay("./data/analysis/flowacc-overlay.png", flowMetadata.bounds, { pane: "flowPane", attribution: "FlowAcc_Log · Field GIS data", interactive: false });
+      await new Promise((resolve, reject) => {
+        const image = new Image(); image.onload = resolve; image.onerror = reject;
+        image.src = "./data/analysis/flowacc-overlay.png";
+      });
+      $("analysis-toggle").disabled = false;
+    } catch (error) {
+      $("analysis-toggle").textContent = "Analysis basemap unavailable";
+      console.error("Flow accumulation:", error);
+    }
+  }
+  $("analysis-toggle").addEventListener("click", () => {
+    analysisMode = !analysisMode;
+    $("analysis-toggle").setAttribute("aria-pressed", String(analysisMode));
+    $("analysis-toggle").textContent = analysisMode ? "Back to trail explorer" : "Erosion risk analysis";
+    $("map").classList.toggle("analysis-map", analysisMode);
+    if (analysisMode) { map.removeLayer(base); flowOverlay.addTo(map); $("tile-status").hidden = true; }
+    else { map.removeLayer(flowOverlay); base.addTo(map); }
+    render();
+  });
+  loadFlowOverlay();
   // Set the opening view once both requests finish, independent of their order.
   Promise.all([loadTrails(), loadBoundary(), loadPoints()]).then(() => {
     fullBounds = boundaryBounds?.isValid() ? boundaryBounds : trailBounds?.isValid() ? trailBounds : pointBounds;

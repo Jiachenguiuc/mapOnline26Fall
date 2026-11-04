@@ -1,0 +1,31 @@
+{
+  "bounds": [
+    [
+      32.95416770335653,
+      -96.6569613978334
+    ],
+    [
+      32.96575422405067,
+      -96.63827489212207
+    ]
+  ],
+  "stretch": [
+    0.0,
+    4.381447591781619
+  ],
+  "percentClip": [
+    0.5,
+    0.5
+  ],
+  "gamma": 1,
+  "statistics": "Dataset sampled at up to 2048 x 2048 using nearest resampling",
+  "sourceCRS": "EPSG:26914",
+  "size": [
+    1800,
+    1330
+  ],
+  "colors": [
+    "#e0f9ff",
+    "#84d3fa"
+  ]
+}

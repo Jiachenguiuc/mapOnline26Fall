@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="./style.css">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script defer src="./risk.js"></script>
   <script defer src="./script.js"></script>
 </head>
 <body>
@@ -31,6 +32,7 @@
     <section class="map-panel" aria-label="Interactive map">
       <div id="map" aria-label="Trail map"></div>
       <button id="fit-bounds" class="map-button" type="button">⌖ Full extent</button>
+      <button id="analysis-toggle" class="map-button analysis-toggle" type="button" aria-pressed="false" disabled>Erosion risk analysis</button>
       <div id="map-notices" class="map-notices" aria-live="polite"><p id="boundary-status">Checking boundary data…</p><p id="point-status" hidden></p><p id="tile-status" hidden></p></div>
       <details class="legend" open><summary>Map legend</summary><div id="legend-items"></div><div id="boundary-legend" class="legend-row" hidden><span class="boundary-swatch" aria-hidden="true"></span>Preserve boundary</div><div id="point-legend"></div><p>Select a trail or point for details and photos</p></details>
     </section>

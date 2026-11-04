@@ -216,3 +216,36 @@ GitHub Pages 发布步骤（尚未执行）：
   匹配，Point 18 缺图提示正确；所有 17 张图片 HTTP HEAD 返回 200。
 - 验证时未捕获控制台错误；尚未进行线上 GitHub Pages 点位照片验收。
 - 发布更新时注意提交新增的 signage.json、image-manifest.json、images/ 和 tools/。
+
+十五、Erosion risk analysis 模式（2026-11-04）
+- 步道数据源改为 data/roadSurvey_ErosionRisk.geojson，仍为 23 个线要素。
+  兼容新字段 Trail Type、Trail Name、Surface Type，并保留 Risk_Score。
+- 默认状态继续使用 OSM 和原步道类型分类配色、图例。
+- 地图左上角新增 Erosion risk analysis 切换按钮，开启后自动切换风险配色、
+  列表分类、图例及 FlowAcc_Log 底图；再次点击恢复默认样式与 OSM。
+- risk.js 使用动态规划求解 Jenks 自然断点，最小化类内平方误差。
+  使用全量有效 Risk_Score 计算，不随搜索或筛选改变断点。
+  当前 Low：14.556982231032432–29.77068436855495（3 段，绿）；
+  Medium：>29.77068436855495–47.505680783911（11 段，黄）；
+  High：>47.505680783911–62.90461472440865（9 段，红）。
+  实际分类使用完整精度，图例显示两位小数；缺失值独立标灰。
+- 分析弹窗增加风险等级及 Risk_Score；点位、照片、边界和原筛选保持可用。
+- 原始 FlowAcc_Log 是 ArcGIS AIG 格式，路径 data/images/flowacc_log，
+  源 CRS 为 EPSG:26914。它是已取对数的汇流累积栅格，不再重复取 log。
+- tools/prepare_flow_overlay.py 将源栅格重投影至 Web Mercator，按全部六个
+  边界面掩膜裁剪，输出 1800×1330 RGBA PNG，边界外和 NoData 透明。
+- 栅格色带 #e0f9ff → #84d3fa，值越高越蓝；Gamma=1。
+  两端各 0.5% Percent Clip，使用全栅格至多 2048×2048 最近邻采样估算统计，
+  当前阈值为 0–4.381447591781619；与 ArcGIS 的全分辨率统计可能略有差异。
+  栅格显示采用双线性重采样；排除 ArcGIS 3.4e38 NoData 占位值。
+- 网页只加载 data/analysis/flowacc-overlay.png（约 3.06 MB）和对应 JSON
+  定位/拉伸元数据；独立 flowPane 位于边界和步道下方。分析模式无 OSM 底图。
+- 依赖 rasterio、numpy、pillow 已装入本地 .map-tools；只用于预处理，网页无
+  Python 运行依赖。原始栅格或边界更新后需重新运行 prepare_flow_overlay.py。
+- .gitignore 忽略 .map-tools、原始约 946 MB 栅格目录、info 与金字塔文件。
+  发布应包含 risk.js、更新后的 script.js/index.html/style.css、风险 GeoJSON、
+  data/analysis/ 两个生成文件以及 tools/，无需上传原始 AIG 栅格。
+- 验证：独立 Python 枚举所有两处分割，与网页 Jenks 的断点一致；浏览器
+  验证默认模式、风险模式、返回默认、筛选后断点不变及风险弹窗。
+  已目视检查蓝色底图只在边界内显示；未捕获控制台错误。
+- 仍待真实 GitHub Pages 发布后验收及用户对色带视觉效果的确认。
